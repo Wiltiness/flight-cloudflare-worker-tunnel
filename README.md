@@ -1,15 +1,15 @@
 # vless-worker-wasm
 
-Lightweight VLESS over WebSocket tunnel runner designed for Cloudflare Worker and workerd-compatible runtimes, powered by an obfuscated Rust WebAssembly core.
+Lightweight VLESS over WebSocket tunnel runner designed for Cloudflare Worker and workerd-compatible runtimes, powered by an obfuscated WebAssembly binary core.
 
 ---
 
 ## Features
 
-- **Obfuscated Binary Core**: VLESS packet decoding, UUID authentication, and target parsing are compiled into a tiny (2.1 KB) WebAssembly binary without external symbols.
-- **SSRF Shield**: Built-in network boundary validation in WebAssembly prevents access to private IPv4 ranges, link-local addresses, cloud metadata endpoints, and internal domains.
-- **Dynamic Credentials**: Generates a random UUID on deployment if none is provided via `env.UUID`.
-- **Zero Build Dependencies**: Pre-compiled WebAssembly is embedded as Base64 in `_worker.js` for single-file deployment.
+- **Obfuscated Binary Core**: Packet parsing, credentials verification, and target stream multiplexing are compiled into a compact WebAssembly binary with all internal symbols stripped.
+- **SSRF Shield**: Enforces strict network boundaries within the binary layer, rejecting connections to private subnets, link-local addresses, cloud metadata endpoints, and internal domains.
+- **Dynamic Credentials**: Automatically provisions a cryptographically random UUID on startup if none is set via `env.UUID`.
+- **Zero Build Dependencies**: Single-file runtime with embedded WebAssembly bytecode.
 
 ---
 
@@ -17,27 +17,18 @@ Lightweight VLESS over WebSocket tunnel runner designed for Cloudflare Worker an
 
 ```text
 .
-├── _worker.js         # Deployment script with embedded WebAssembly module
+├── _worker.js         # Production Worker script with embedded WebAssembly core
 ├── wrangler.toml      # Runtime configuration for Cloudflare Workers / workerd
-├── package.json       # Project scripts
-├── core/              # Rust source code
-│   ├── Cargo.toml     # Cargo configuration with size optimization
-│   ├── src/lib.rs     # WebAssembly protocol decoder implementation
-│   └── build.ps1      # PowerShell rebuild script
-└── tests/
-    └── test.js        # End-to-end integration test
+├── package.json       # Deployment scripts
+└── README.md          # Project documentation
 ```
 
 ---
 
-## Quick Start
+## Deployment
 
-### 1. Verification Test
-```bash
-npm test
-```
+Deploy directly via Wrangler:
 
-### 2. Deploy
 ```bash
 npm run deploy
 ```
