@@ -1,5 +1,5 @@
 {
-  "name": "vless-worker-wasm",
+  "name": "worker-wasm",
   "version": "1.0.0",
   "description": "Lightweight VLESS over WebSocket tunnel runner with obfuscated WebAssembly core",
   "main": "_worker.js",
