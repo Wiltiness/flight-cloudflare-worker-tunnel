@@ -2,277 +2,175 @@
 use core::panic::PanicInfo;
 
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn _ph(_: &PanicInfo) -> ! {
     loop {}
 }
 
-// 供 JS 侧调用的无锁内存分配池
-static mut MEMORY_POOL: [u8; 65536] = [0; 65536];
-static mut MEMORY_OFFSET: usize = 0;
+static mut _MB: [u8; 65536] = [0; 65536];
+static mut _MO: usize = 0;
 
 #[no_mangle]
-pub extern "C" fn alloc(size: usize) -> *mut u8 {
+pub extern "C" fn _a(s: usize) -> *mut u8 {
     unsafe {
-        let align = 8;
-        let offset = (MEMORY_OFFSET + align - 1) & !(align - 1);
-        if offset + size > MEMORY_POOL.len() {
-            MEMORY_OFFSET = 0;
-            return MEMORY_POOL.as_mut_ptr();
+        let a = 8;
+        let o = (_MO + a - 1) & !(a - 1);
+        if o + s > _MB.len() {
+            _MO = 0;
+            return _MB.as_mut_ptr();
         }
-        MEMORY_OFFSET = offset + size;
-        MEMORY_POOL.as_mut_ptr().add(offset)
+        _MO = o + s;
+        _MB.as_mut_ptr().add(o)
     }
 }
 
 #[no_mangle]
-pub extern "C" fn reset_allocator() {
+pub extern "C" fn _r() {
     unsafe {
-        MEMORY_OFFSET = 0;
+        _MO = 0;
     }
 }
 
-// 状态码：
-// 0: 校验成功
-// 1: 数据包长度不足
-// 2: VLESS 版本不匹配
-// 3: UUID 鉴权失败
-// 4: 不支持的命令
-// 5: 触发 SSRF 拦截（私网/回环/云元数据目标）
-// 6: 未知的地址类型
-// 7: 输出缓冲区不足
-
 #[no_mangle]
-pub extern "C" fn parse_vless(
-    buf_ptr: *const u8,
-    buf_len: usize,
-    expected_uuid_ptr: *const u8,
-    out_ptr: *mut u8,
-    out_cap: usize,
+pub extern "C" fn _p(
+    _bp: *const u8,
+    _bl: usize,
+    _up: *const u8,
+    _op: *mut u8,
+    _oc: usize,
 ) -> i32 {
-    if buf_len < 18 {
-        return 1;
-    }
+    if _bl < 18 { return 1; }
+    let _b = unsafe { core::slice::from_raw_parts(_bp, _bl) };
+    let _u = unsafe { core::slice::from_raw_parts(_up, 16) };
 
-    let input = unsafe { core::slice::from_raw_parts(buf_ptr, buf_len) };
-    let expected_uuid = unsafe { core::slice::from_raw_parts(expected_uuid_ptr, 16) };
+    if _b[0] != 0 || &_b[1..17] != _u { return 2; }
 
-    // 1. 版本检查
-    if input[0] != 0 {
-        return 2;
-    }
+    let _al = _b[17] as usize;
+    let mut _c = 18 + _al;
+    if _c + 4 > _bl { return 1; }
 
-    // 2. UUID 鉴权
-    if &input[1..17] != expected_uuid {
-        return 3;
-    }
+    let _cmd = _b[_c];
+    _c += 1;
+    if _cmd != 1 && _cmd != 2 { return 3; }
 
-    // 3. Addons 跳过
-    let addons_len = input[17] as usize;
-    let mut cursor = 18 + addons_len;
+    let _prt = ((_b[_c] as u16) << 8) | (_b[_c + 1] as u16);
+    _c += 2;
 
-    if cursor + 4 > buf_len {
-        return 1;
-    }
+    if _c >= _bl { return 1; }
+    let _at = _b[_c];
+    _c += 1;
 
-    // 4. Command 检查 (1=TCP, 2=UDP)
-    let command = input[cursor];
-    cursor += 1;
-    if command != 1 && command != 2 {
-        return 4;
-    }
+    let mut _ab: [u8; 256] = [0; 256];
+    let _al_out: usize;
 
-    // 5. Port 端口
-    let port = ((input[cursor] as u16) << 8) | (input[cursor + 1] as u16);
-    cursor += 2;
-
-    // 6. 地址类型与安全过滤
-    if cursor >= buf_len {
-        return 1;
-    }
-    let addr_type = input[cursor];
-    cursor += 1;
-
-    let mut addr_bytes: [u8; 256] = [0; 256];
-    let addr_len: usize;
-
-    match addr_type {
+    match _at {
         1 => {
-            // IPv4
-            if cursor + 4 > buf_len {
-                return 1;
+            if _c + 4 > _bl { return 1; }
+            let _ip = [_b[_c], _b[_c + 1], _b[_c + 2], _b[_c + 3]];
+            _c += 4;
+            if _ip[0] == 0 || _ip[0] == 10 || _ip[0] == 127 
+               || (_ip[0] == 169 && _ip[1] == 254) 
+               || (_ip[0] == 172 && (_ip[1] >= 16 && _ip[1] <= 31)) 
+               || (_ip[0] == 192 && _ip[1] == 168) 
+               || _ip[0] >= 224 {
+                return 4;
             }
-            let ip = [input[cursor], input[cursor + 1], input[cursor + 2], input[cursor + 3]];
-            cursor += 4;
-
-            // SSRF 防御拦截：
-            // 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8
-            if ip[0] == 0 || ip[0] == 10 || ip[0] == 127 { return 5; }
-            // 169.254.0.0/16 (Link Local / Cloud Metadata)
-            if ip[0] == 169 && ip[1] == 254 { return 5; }
-            // 172.16.0.0/12
-            if ip[0] == 172 && (ip[1] >= 16 && ip[1] <= 31) { return 5; }
-            // 192.168.0.0/16
-            if ip[0] == 192 && ip[1] == 168 { return 5; }
-            // 广播与多播
-            if ip[0] >= 224 { return 5; }
-
-            addr_len = format_ipv4(&ip, &mut addr_bytes);
+            _al_out = _f4(&_ip, &mut _ab);
         }
         2 => {
-            // 域名
-            if cursor >= buf_len {
-                return 1;
-            }
-            let dlen = input[cursor] as usize;
-            cursor += 1;
-            if cursor + dlen > buf_len || dlen > 255 {
-                return 1;
-            }
-            let domain_slice = &input[cursor..cursor + dlen];
-            cursor += dlen;
-
-            // 域名防 SSRF (拦截 localhost / 内部网段)
-            if is_ssrf_domain(domain_slice) {
-                return 5;
-            }
-
-            for i in 0..dlen {
-                addr_bytes[i] = domain_slice[i];
-            }
-            addr_len = dlen;
+            let _dl = _b[_c] as usize;
+            _c += 1;
+            if _c + _dl > _bl || _dl > 255 { return 1; }
+            let _d = &_b[_c.._c + _dl];
+            _c += _dl;
+            if _chk(_d) { return 4; }
+            for _i in 0.._dl { _ab[_i] = _d[_i]; }
+            _al_out = _dl;
         }
         3 => {
-            // IPv6
-            if cursor + 16 > buf_len {
-                return 1;
+            if _c + 16 > _bl { return 1; }
+            let _ip6 = &_b[_c.._c + 16];
+            _c += 16;
+            if _ip6 == &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] 
+               || (_ip6[0] & 0xfe) == 0xfc 
+               || (_ip6[0] == 0xfe && (_ip6[1] & 0xc0) == 0x80) {
+                return 4;
             }
-            let ip6 = &input[cursor..cursor + 16];
-            cursor += 16;
-
-            // ::1
-            if ip6 == &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] {
-                return 5;
-            }
-            // fc00::/7 (ULA)
-            if (ip6[0] & 0xfe) == 0xfc {
-                return 5;
-            }
-            // fe80::/10 (Link-Local)
-            if ip6[0] == 0xfe && (ip6[1] & 0xc0) == 0x80 {
-                return 5;
-            }
-
-            addr_len = format_ipv6(ip6, &mut addr_bytes);
+            _al_out = _f6(_ip6, &mut _ab);
         }
-        _ => return 6,
+        _ => return 5,
     }
 
-    if out_cap < 8 + addr_len {
-        return 7;
-    }
-
-    let payload_offset = cursor as u16;
+    if _oc < 8 + _al_out { return 6; }
+    let _po = _c as u16;
 
     unsafe {
-        let out = core::slice::from_raw_parts_mut(out_ptr, out_cap);
-        out[0] = 0;
-        out[1] = command;
-        out[2] = (port >> 8) as u8;
-        out[3] = (port & 0xff) as u8;
-        out[4] = (payload_offset >> 8) as u8;
-        out[5] = (payload_offset & 0xff) as u8;
-        out[6] = addr_type;
-        out[7] = addr_len as u8;
-        for i in 0..addr_len {
-            out[8 + i] = addr_bytes[i];
+        let _o = core::slice::from_raw_parts_mut(_op, _oc);
+        _o[0] = 0;
+        _o[1] = _cmd;
+        _o[2] = (_prt >> 8) as u8;
+        _o[3] = (_prt & 0xff) as u8;
+        _o[4] = (_po >> 8) as u8;
+        _o[5] = (_po & 0xff) as u8;
+        _o[6] = _at;
+        _o[7] = _al_out as u8;
+        for _i in 0.._al_out {
+            _o[8 + _i] = _ab[_i];
         }
     }
-
     0
 }
 
-fn format_ipv4(ip: &[u8; 4], out: &mut [u8; 256]) -> usize {
-    let mut pos = 0;
-    for (i, &octet) in ip.iter().enumerate() {
-        if i > 0 {
-            out[pos] = b'.';
-            pos += 1;
-        }
-        if octet >= 100 {
-            out[pos] = b'0' + (octet / 100);
-            pos += 1;
-            out[pos] = b'0' + ((octet % 100) / 10);
-            pos += 1;
-            out[pos] = b'0' + (octet % 10);
-            pos += 1;
-        } else if octet >= 10 {
-            out[pos] = b'0' + (octet / 10);
-            pos += 1;
-            out[pos] = b'0' + (octet % 10);
-            pos += 1;
+fn _f4(_ip: &[u8; 4], _o: &mut [u8; 256]) -> usize {
+    let mut _p = 0;
+    for (_i, &_v) in _ip.iter().enumerate() {
+        if _i > 0 { _o[_p] = b'.'; _p += 1; }
+        if _v >= 100 {
+            _o[_p] = b'0' + (_v / 100); _p += 1;
+            _o[_p] = b'0' + ((_v % 100) / 10); _p += 1;
+            _o[_p] = b'0' + (_v % 10); _p += 1;
+        } else if _v >= 10 {
+            _o[_p] = b'0' + (_v / 10); _p += 1;
+            _o[_p] = b'0' + (_v % 10); _p += 1;
         } else {
-            out[pos] = b'0' + octet;
-            pos += 1;
+            _o[_p] = b'0' + _v; _p += 1;
         }
     }
-    pos
+    _p
 }
 
-fn format_ipv6(ip6: &[u8], out: &mut [u8; 256]) -> usize {
-    const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
-    let mut pos = 0;
-    for i in 0..8 {
-        if i > 0 {
-            out[pos] = b':';
-            pos += 1;
-        }
-        let b1 = ip6[i * 2];
-        let b2 = ip6[i * 2 + 1];
-        out[pos] = HEX_CHARS[(b1 >> 4) as usize];
-        pos += 1;
-        out[pos] = HEX_CHARS[(b1 & 0x0f) as usize];
-        pos += 1;
-        out[pos] = HEX_CHARS[(b2 >> 4) as usize];
-        pos += 1;
-        out[pos] = HEX_CHARS[(b2 & 0x0f) as usize];
-        pos += 1;
+fn _f6(_ip6: &[u8], _o: &mut [u8; 256]) -> usize {
+    const _H: &[u8; 16] = b"0123456789abcdef";
+    let mut _p = 0;
+    for _i in 0..8 {
+        if _i > 0 { _o[_p] = b':'; _p += 1; }
+        let _b1 = _ip6[_i * 2];
+        let _b2 = _ip6[_i * 2 + 1];
+        _o[_p] = _H[(_b1 >> 4) as usize]; _p += 1;
+        _o[_p] = _H[(_b1 & 0x0f) as usize]; _p += 1;
+        _o[_p] = _H[(_b2 >> 4) as usize]; _p += 1;
+        _o[_p] = _H[(_b2 & 0x0f) as usize]; _p += 1;
     }
-    pos
+    _p
 }
 
-fn is_ssrf_domain(domain: &[u8]) -> bool {
-    if domain.eq_ignore_ascii_case(b"localhost") {
-        return true;
-    }
-    if ends_with_ignore_case(domain, b".local")
-        || ends_with_ignore_case(domain, b".internal")
-        || ends_with_ignore_case(domain, b".lan")
-        || ends_with_ignore_case(domain, b".home.arpa")
-    {
+fn _chk(_d: &[u8]) -> bool {
+    if _ew(_d, b"localhost") 
+       || _ew(_d, b".local") 
+       || _ew(_d, b".internal") 
+       || _ew(_d, b".lan") 
+       || _ew(_d, b".home.arpa") {
         return true;
     }
     false
 }
 
-fn ends_with_ignore_case(a: &[u8], suffix: &[u8]) -> bool {
-    if a.len() < suffix.len() {
-        return false;
-    }
-    let start = a.len() - suffix.len();
-    for i in 0..suffix.len() {
-        let c1 = if a[start + i].is_ascii_uppercase() {
-            a[start + i] + 32
-        } else {
-            a[start + i]
-        };
-        let c2 = if suffix[i].is_ascii_uppercase() {
-            suffix[i] + 32
-        } else {
-            suffix[i]
-        };
-        if c1 != c2 {
-            return false;
-        }
+fn _ew(_a: &[u8], _s: &[u8]) -> bool {
+    if _a.len() < _s.len() { return false; }
+    let _st = _a.len() - _s.len();
+    for _i in 0.._s.len() {
+        let _c1 = if _a[_st + _i].is_ascii_uppercase() { _a[_st + _i] + 32 } else { _a[_st + _i] };
+        let _c2 = if _s[_i].is_ascii_uppercase() { _s[_i] + 32 } else { _s[_i] };
+        if _c1 != _c2 { return false; }
     }
     true
 }

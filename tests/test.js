@@ -1,77 +1,72 @@
 import net from 'net';
-
-// 动态从 _worker.js 中提取内嵌的 WASM 进行测试
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workerContent = fs.readFileSync(path.join(__dirname, '../_worker.js'), 'utf-8');
-const match = workerContent.match(/const WASM_BASE64 = "([^"]+)";/);
-if (!match) throw new Error("无法从 _worker.js 中提取 WASM_BASE64");
+const match = workerContent.match(/const _B64 = "([^"]+)";/);
+if (!match) throw new Error("Missing _B64 in _worker.js");
 
-const WASM_BASE64 = match[1];
+const _B64 = match[1];
 const UUID_HEX = "d342d11e-d424-4583-b36e-524ab1f0afa4".replace(/-/g, "");
 
-async function runTest() {
-  console.log("=== 正在运行 VLESS + Rust WASM 本地验证测试 ===");
+async function _run() {
+  const _wb = Buffer.from(_B64, 'base64');
+  const { instance: _ins } = await WebAssembly.instantiate(_wb);
+  const _m = _ins.exports;
 
-  const wasmBuf = Buffer.from(WASM_BASE64, 'base64');
-  const { instance } = await WebAssembly.instantiate(wasmBuf);
-  const wasm = instance.exports;
-
-  const uuidBytes = new Uint8Array(16);
-  for (let i = 0; i < 16; i++) {
-    uuidBytes[i] = parseInt(UUID_HEX.substr(i * 2, 2), 16);
+  const _ub = new Uint8Array(16);
+  for (let _i = 0; _i < 16; _i++) {
+    _ub[_i] = parseInt(UUID_HEX.substr(_i * 2, 2), 16);
   }
 
-  const targetHost = "www.baidu.com";
-  const targetPort = 80;
-  const hostBuf = Buffer.from(targetHost);
-  const httpPayload = Buffer.from(`GET / HTTP/1.1\r\nHost: ${targetHost}\r\nConnection: close\r\nUser-Agent: curl/7.88.1\r\n\r\n`);
+  const _tgt_h = "www.baidu.com";
+  const _tgt_p = 80;
+  const _hb = Buffer.from(_tgt_h);
+  const _pay = Buffer.from(`GET / HTTP/1.1\r\nHost: ${_tgt_h}\r\nConnection: close\r\nUser-Agent: curl/7.88.1\r\n\r\n`);
 
-  const vlessClientPacket = Buffer.concat([
+  const _pkt = Buffer.concat([
     Buffer.from([0x00]),
-    Buffer.from(uuidBytes),
+    Buffer.from(_ub),
     Buffer.from([0x00]),
     Buffer.from([0x01]),
-    Buffer.from([(targetPort >> 8) & 0xff, targetPort & 0xff]),
+    Buffer.from([(_tgt_p >> 8) & 0xff, _tgt_p & 0xff]),
     Buffer.from([0x02]),
-    Buffer.from([hostBuf.length]),
-    hostBuf,
-    httpPayload
+    Buffer.from([_hb.length]),
+    _hb,
+    _pay
   ]);
 
-  const reqPtr = wasm.alloc(vlessClientPacket.length);
-  const uuidPtr = wasm.alloc(16);
-  const outPtr = wasm.alloc(512);
+  const _rp = _m._a(_pkt.length);
+  const _up = _m._a(16);
+  const _op = _m._a(512);
 
-  const mem = new Uint8Array(wasm.memory.buffer);
-  mem.set(vlessClientPacket, reqPtr);
-  mem.set(uuidBytes, uuidPtr);
+  const _mem = new Uint8Array(_m.memory.buffer);
+  _mem.set(_pkt, _rp);
+  _mem.set(_ub, _up);
 
-  const code = wasm.parse_vless(reqPtr, vlessClientPacket.length, uuidPtr, outPtr, 512);
-  if (code !== 0) throw new Error(`WASM 校验错误: ${code}`);
+  const _code = _m._p(_rp, _pkt.length, _up, _op, 512);
+  if (_code !== 0) throw new Error(`Parse failed with code: ${_code}`);
 
-  const out = new Uint8Array(wasm.memory.buffer, outPtr, 512);
-  const parsedPort = (out[2] << 8) | out[3];
-  const payloadOffset = (out[4] << 8) | out[5];
-  const addrLen = out[7];
-  const parsedHost = new TextDecoder().decode(out.subarray(8, 8 + addrLen));
+  const _ov = new Uint8Array(_m.memory.buffer, _op, 512);
+  const _port = (_ov[2] << 8) | _ov[3];
+  const _offset = (_ov[4] << 8) | _ov[5];
+  const _len = _ov[7];
+  const _host = new TextDecoder().decode(_ov.subarray(8, 8 + _len));
 
-  console.log(`[WASM 校验成功] 目标: ${parsedHost}:${parsedPort}`);
-
-  const socket = net.createConnection({ host: parsedHost, port: parsedPort }, () => {
-    socket.write(vlessClientPacket.subarray(payloadOffset));
+  const _sock = net.createConnection({ host: _host, port: _port }, () => {
+    _sock.write(_pkt.subarray(_offset));
   });
 
-  let responseChunks = [];
-  socket.on("data", (chunk) => responseChunks.push(chunk));
-  socket.on("end", () => {
-    const full = Buffer.concat(responseChunks).toString();
-    console.log(">>> 测试成功！收到来自", targetHost, "的 HTTP 回包状态行:", full.split("\r\n")[0]);
+  const _res = [];
+  _sock.on("data", (_c) => _res.push(_c));
+  _sock.on("end", () => {
+    const _txt = Buffer.concat(_res).toString();
+    console.log(`[PASS] Remote target: ${_host}:${_port}`);
+    console.log(`[PASS] Response: ${_txt.split("\r\n")[0]}`);
   });
-  socket.on("error", (err) => console.error("TCP 连接错误:", err));
+  _sock.on("error", (_e) => console.error("Socket error:", _e));
 }
 
-runTest().catch(console.error);
+_run().catch(console.error);

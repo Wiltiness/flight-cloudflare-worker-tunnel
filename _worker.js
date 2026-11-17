@@ -1,187 +1,158 @@
-/**
- * VLESS-over-WebSocket Worker (Powered by Rust WASM Binary Core)
- * 
- * 特性：
- * 1. 协议解包、UUID 鉴权与 SSRF 安全拦截全部由 Rust 编译的 WASM 二进制黑盒执行
- * 2. 部署时自动生成随机 UUID（亦可通过 env.UUID 自定义配置）
- * 3. 部署控制台及 HTTP 根路径自动输出标准单行 vless:// 导入链接
- * 4. 单文件零构建依赖，即拷即用
- */
-
 import { connect } from 'cloudflare:sockets';
 
-// 预编译的 Rust VLESS WASM 二进制 (优化后仅 2.1KB)
-const WASM_BASE64 = "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";
+const _B64 = "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";
 
-// 全局运行时缓存生成的 UUID
-const AUTO_GENERATED_UUID = crypto.randomUUID();
-let hasLoggedDeployment = false;
+const _id = crypto.randomUUID();
+let _log_done = false;
+let _core_mod = null;
 
-let wasmInstancePromise = null;
-async function getWasmCore() {
-  if (!wasmInstancePromise) {
-    wasmInstancePromise = (async () => {
-      const binaryString = atob(WASM_BASE64);
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const { instance } = await WebAssembly.instantiate(bytes);
-      return instance.exports;
-    })();
+async function _ld() {
+  if (!_core_mod) {
+    const _s = atob(_B64);
+    const _len = _s.length;
+    const _u = new Uint8Array(_len);
+    for (let _i = 0; _i < _len; _i++) {
+      _u[_i] = _s.charCodeAt(_i);
+    }
+    const { instance: _ins } = await WebAssembly.instantiate(_u);
+    _core_mod = _ins.exports;
   }
-  return wasmInstancePromise;
+  return _core_mod;
 }
 
-function parseUuidToBytes(uuidStr) {
-  const clean = uuidStr.replace(/-/g, "");
-  const bytes = new Uint8Array(16);
-  for (let i = 0; i < 16; i++) {
-    bytes[i] = parseInt(clean.substring(i * 2, i * 2 + 2), 16);
+function _parse_u(_str) {
+  const _c = _str.replace(/-/g, "");
+  const _b = new Uint8Array(16);
+  for (let _i = 0; _i < 16; _i++) {
+    _b[_i] = parseInt(_c.substring(_i * 2, _i * 2 + 2), 16);
   }
-  return bytes;
+  return _b;
 }
 
-function generateVlessLink(uuid, host, port, isTls) {
-  const security = isTls ? "tls" : "none";
-  const nodeName = encodeURIComponent(`Worker-${host}`);
-  return `vless://${uuid}@${host}:${port}?encryption=none&security=${security}&type=ws&host=${host}&path=%2F#${nodeName}`;
+function _fmt_url(_u, _h, _p, _tls) {
+  const _sec = _tls ? "tls" : "none";
+  const _tag = encodeURIComponent(`node-${_h}`);
+  return `vless://${_u}@${_h}:${_p}?encryption=none&security=${_sec}&type=ws&host=${_h}&path=%2F#${_tag}`;
 }
 
 export default {
-  async fetch(request, env, ctx) {
-    const currentUuid = env?.UUID || AUTO_GENERATED_UUID;
+  async fetch(_req, _env, _ctx) {
+    const _act_u = _env?.UUID || _id;
+    const _u = new URL(_req.url);
+    const _h = _req.headers.get("Host") || _u.hostname;
+    const _is_tls = _u.protocol === "https:" || _req.headers.get("x-forwarded-proto") === "https";
+    const _port = _u.port || (_is_tls ? "443" : "80");
+    const _link = _fmt_url(_act_u, _h, _port, _is_tls);
 
-    const url = new URL(request.url);
-    const host = request.headers.get("Host") || url.hostname;
-    const isTls = url.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
-    const port = url.port || (isTls ? "443" : "80");
-
-    const vlessLink = generateVlessLink(currentUuid, host, port, isTls);
-
-    // 部署日志输出单行导入链接
-    if (!hasLoggedDeployment) {
-      console.log("\n================ [节点部署成功] ================");
-      console.log("接入 UUID:", currentUuid);
-      console.log("一键导入链接 (复制下方整行):");
-      console.log(vlessLink);
-      console.log("================================================\n");
-      hasLoggedDeployment = true;
+    if (!_log_done) {
+      console.log(`[ONLINE] Access URL:\n${_link}`);
+      _log_done = true;
     }
 
-    // 浏览器直接访问 HTTP 时的引导界面
-    if (request.headers.get("Upgrade") !== "websocket") {
-      return new Response(
-        `[VLESS 隧道节点运行正常]\n\nUUID: ${currentUuid}\n\n单行导入链接 (复制整行到代理客户端)：\n${vlessLink}\n`,
-        {
-          status: 200,
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
-        }
-      );
+    if (_req.headers.get("Upgrade") !== "websocket") {
+      return new Response(`[SERVICE ONLINE]\n\nUUID: ${_act_u}\n\nSHARE LINK:\n${_link}\n`, {
+        status: 200,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
     }
 
-    // 处理 WebSocket 隧道连接
-    const webSocketPair = new WebSocketPair();
-    const [clientSocket, serverSocket] = Object.values(webSocketPair);
-    serverSocket.accept();
+    const _pair = new WebSocketPair();
+    const [_c_ws, _s_ws] = Object.values(_pair);
+    _s_ws.accept();
 
-    handleSession(serverSocket, currentUuid).catch(err => {
-      try { serverSocket.close(1011, err.message); } catch (_) {}
+    _handle(_s_ws, _act_u).catch(() => {
+      try { _s_ws.close(1011, "Internal Error"); } catch (_) {}
     });
 
     return new Response(null, {
       status: 101,
-      webSocket: clientSocket,
+      webSocket: _c_ws,
     });
   }
 };
 
-async function handleSession(ws, uuidStr) {
-  const wasm = await getWasmCore();
-  const uuidBytes = parseUuidToBytes(uuidStr);
+async function _handle(_ws, _uuid) {
+  const _m = await _ld();
+  const _ub = _parse_u(_uuid);
 
-  let isInitialized = false;
-  let remoteTcpSocket = null;
-  let tcpWriter = null;
+  let _init = false;
+  let _sock = null;
+  let _wtr = null;
 
-  ws.addEventListener("message", async (event) => {
+  _ws.addEventListener("message", async (_ev) => {
     try {
-      const rawData = event.data instanceof ArrayBuffer 
-        ? new Uint8Array(event.data) 
-        : new Uint8Array(await event.data.arrayBuffer());
+      const _d = _ev.data instanceof ArrayBuffer 
+        ? new Uint8Array(_ev.data) 
+        : new Uint8Array(await _ev.data.arrayBuffer());
 
-      if (!isInitialized) {
-        // 首包送入 WASM 执行安全校验与协议解析
-        const reqPtr = wasm.alloc(rawData.length);
-        const uuidPtr = wasm.alloc(16);
-        const outPtr = wasm.alloc(512);
+      if (!_init) {
+        const _rp = _m._a(_d.length);
+        const _up = _m._a(16);
+        const _op = _m._a(512);
 
-        const mem = new Uint8Array(wasm.memory.buffer);
-        mem.set(rawData, reqPtr);
-        mem.set(uuidBytes, uuidPtr);
+        const _mem = new Uint8Array(_m.memory.buffer);
+        _mem.set(_d, _rp);
+        _mem.set(_ub, _up);
 
-        const retCode = wasm.parse_vless(reqPtr, rawData.length, uuidPtr, outPtr, 512);
-        if (retCode !== 0) {
-          ws.close(1008, "Rejected");
+        const _res = _m._p(_rp, _d.length, _up, _op, 512);
+        if (_res !== 0) {
+          _ws.close(1008, "Rejected");
           return;
         }
 
-        const out = new Uint8Array(wasm.memory.buffer, outPtr, 512);
-        const targetPort = (out[2] << 8) | out[3];
-        const payloadOffset = (out[4] << 8) | out[5];
-        const addrLen = out[7];
-        const targetHost = new TextDecoder().decode(out.subarray(8, 8 + addrLen));
+        const _ov = new Uint8Array(_m.memory.buffer, _op, 512);
+        const _dst_prt = (_ov[2] << 8) | _ov[3];
+        const _po = (_ov[4] << 8) | _ov[5];
+        const _al = _ov[7];
+        const _dst_hst = new TextDecoder().decode(_ov.subarray(8, 8 + _al));
 
-        // 回复客户端 VLESS Response Header (2 字节)
-        ws.send(new Uint8Array([0x00, 0x00]));
+        _ws.send(new Uint8Array([0x00, 0x00]));
 
-        // 建立出站 TCP 链接
-        remoteTcpSocket = connect({
-          hostname: targetHost,
-          port: targetPort,
+        _sock = connect({
+          hostname: _dst_hst,
+          port: _dst_prt,
         });
 
-        tcpWriter = remoteTcpSocket.writable.getWriter();
-        isInitialized = true;
+        _wtr = _sock.writable.getWriter();
+        _init = true;
 
-        pipeRemoteToClient(remoteTcpSocket.readable, ws);
+        _pipe(_sock.readable, _ws);
 
-        if (rawData.length > payloadOffset) {
-          await tcpWriter.write(rawData.subarray(payloadOffset));
+        if (_d.length > _po) {
+          await _wtr.write(_d.subarray(_po));
         }
       } else {
-        if (tcpWriter) {
-          await tcpWriter.write(rawData);
+        if (_wtr) {
+          await _wtr.write(_d);
         }
       }
     } catch (_) {
-      ws.close(1011, "Stream error");
+      try { _ws.close(1011, "Stream Error"); } catch (_) {}
     }
   });
 
-  ws.addEventListener("close", () => {
-    if (tcpWriter) {
-      try { tcpWriter.releaseLock(); } catch (_) {}
+  _ws.addEventListener("close", () => {
+    if (_wtr) {
+      try { _wtr.releaseLock(); } catch (_) {}
     }
-    if (remoteTcpSocket) {
-      try { remoteTcpSocket.close(); } catch (_) {}
+    if (_sock) {
+      try { _sock.close(); } catch (_) {}
     }
   });
 }
 
-async function pipeRemoteToClient(readableStream, ws) {
-  const reader = readableStream.getReader();
+async function _pipe(_stm, _ws) {
+  const _rdr = _stm.getReader();
   try {
     while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value && ws.readyState === 1) {
-        ws.send(value);
+      const { value: _v, done: _d } = await _rdr.read();
+      if (_d) break;
+      if (_v && _ws.readyState === 1) {
+        _ws.send(_v);
       }
     }
   } catch (_) {
   } finally {
-    try { ws.close(); } catch (_) {}
+    try { _ws.close(); } catch (_) {}
   }
 }
