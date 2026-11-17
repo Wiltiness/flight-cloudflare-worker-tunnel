@@ -1,7 +1,5 @@
 import { connect } from 'cloudflare:sockets';
 
-const _B64 = "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";
-
 const _PATH_PREFIX = "/stream";
 
 const _CAMOUFLAGE_HTML = `<!DOCTYPE html>
@@ -14,20 +12,6 @@ h1{font-size:1.5rem;color:#10b981}</style></head>
 </html>`;
 
 let _id = null;
-let _core_mod = null;
-
-async function _ld() {
-  if (!_core_mod) {
-    const _s = atob(_B64);
-    const _u = new Uint8Array(_s.length);
-    for (let _i = 0; _i < _s.length; _i++) {
-      _u[_i] = _s.charCodeAt(_i);
-    }
-    const { instance: _ins } = await WebAssembly.instantiate(_u);
-    _core_mod = _ins.exports;
-  }
-  return _core_mod;
-}
 
 function _parse_u(_str) {
   const _c = _str.replace(/-/g, "");
@@ -38,19 +22,65 @@ function _parse_u(_str) {
   return _b;
 }
 
+function _chk_d(_d) {
+  const _s = _d.toLowerCase();
+  return _s === "localhost" || _s.endsWith(".local") || _s.endsWith(".internal") || _s.endsWith(".lan") || _s.endsWith(".home.arpa");
+}
+
+function _p(_b, _u) {
+  if (_b.length < 18) return { _err: 1 };
+  if (_b[0] !== 0) return { _err: 2 };
+  for (let _i = 0; _i < 16; _i++) {
+    if (_b[1 + _i] !== _u[_i]) return { _err: 3 };
+  }
+  const _al = _b[17];
+  let _c = 18 + _al;
+  if (_c + 4 > _b.length) return { _err: 1 };
+  const _cmd = _b[_c++];
+  if (_cmd !== 1 && _cmd !== 2) return { _err: 4 };
+  const _prt = (_b[_c] << 8) | _b[_c + 1];
+  _c += 2;
+  const _at = _b[_c++];
+  let _hst = "";
+
+  if (_at === 1) {
+    if (_c + 4 > _b.length) return { _err: 1 };
+    const _ip = [_b[_c], _b[_c + 1], _b[_c + 2], _b[_c + 3]];
+    _c += 4;
+    if (_ip[0] === 0 || _ip[0] === 10 || _ip[0] === 127 || (_ip[0] === 169 && _ip[1] === 254) ||
+        (_ip[0] === 172 && (_ip[1] >= 16 && _ip[1] <= 31)) || (_ip[0] === 192 && _ip[1] === 168) || _ip[0] >= 224) {
+      return { _err: 5 };
+    }
+    _hst = _ip.join(".");
+  } else if (_at === 2) {
+    const _dl = _b[_c++];
+    if (_c + _dl > _b.length) return { _err: 1 };
+    _hst = new TextDecoder().decode(_b.subarray(_c, _c + _dl));
+    _c += _dl;
+    if (_chk_d(_hst)) return { _err: 5 };
+  } else if (_at === 3) {
+    if (_c + 16 > _b.length) return { _err: 1 };
+    const _ip6 = _b.subarray(_c, _c + 16);
+    _c += 16;
+    if (_ip6.every((_v, _idx) => (_idx === 15 ? _v === 1 : _v === 0)) ||
+        (_ip6[0] & 0xfe) === 0xfc || (_ip6[0] === 0xfe && (_ip6[1] & 0xc0) === 0x80)) {
+      return { _err: 5 };
+    }
+    const _parts = [];
+    for (let _i = 0; _i < 8; _i++) {
+      _parts.push(((_ip6[_i * 2] << 8) | _ip6[_i * 2 + 1]).toString(16));
+    }
+    _hst = _parts.join(":");
+  } else {
+    return { _err: 6 };
+  }
+
+  return { _err: 0, _cmd, _prt, _hst, _po: _c };
+}
+
 export default {
   async fetch(_req, _env, _ctx) {
     const _u = new URL(_req.url);
-
-    // Debug endpoint: /debug
-    if (_u.pathname === "/debug") {
-      try {
-        const _m = await _ld();
-        return new Response("WASM OK, exports: " + Object.keys(_m).join(", "), { status: 200 });
-      } catch (err) {
-        return new Response("WASM ERROR: " + err.stack || err.message, { status: 500 });
-      }
-    }
 
     if (!_u.pathname.startsWith(_PATH_PREFIX) || _req.headers.get("Upgrade") !== "websocket") {
       return new Response(_CAMOUFLAGE_HTML, {
@@ -68,8 +98,8 @@ export default {
     const [_c_ws, _s_ws] = Object.values(_pair);
     _s_ws.accept();
 
-    _handle(_s_ws, _act_u).catch((err) => {
-      try { _s_ws.close(1011, "Error: " + err.message); } catch (_) {}
+    _handle(_s_ws, _act_u).catch(() => {
+      try { _s_ws.close(1011, "Internal Error"); } catch (_) {}
     });
 
     return new Response(null, {
@@ -80,9 +110,7 @@ export default {
 };
 
 async function _handle(_ws, _uuid) {
-  const _m = await _ld();
   const _ub = _parse_u(_uuid);
-
   let _init = false;
   let _sock = null;
   let _wtr = null;
@@ -94,31 +122,17 @@ async function _handle(_ws, _uuid) {
         : new Uint8Array(await _ev.data.arrayBuffer());
 
       if (!_init) {
-        const _rp = _m._a(_d.length);
-        const _up = _m._a(16);
-        const _op = _m._a(512);
-
-        const _mem = new Uint8Array(_m.memory.buffer);
-        _mem.set(_d, _rp);
-        _mem.set(_ub, _up);
-
-        const _res = _m._p(_rp, _d.length, _up, _op, 512);
-        if (_res !== 0) {
-          _ws.close(1008, "Rejected code: " + _res);
+        const _res = _p(_d, _ub);
+        if (_res._err !== 0) {
+          _ws.close(1008, "Rejected");
           return;
         }
-
-        const _ov = new Uint8Array(_m.memory.buffer, _op, 512);
-        const _dst_prt = (_ov[2] << 8) | _ov[3];
-        const _po = (_ov[4] << 8) | _ov[5];
-        const _al = _ov[7];
-        const _dst_hst = new TextDecoder().decode(_ov.subarray(8, 8 + _al));
 
         _ws.send(new Uint8Array([0x00, 0x00]));
 
         _sock = connect({
-          hostname: _dst_hst,
-          port: _dst_prt,
+          hostname: _res._hst,
+          port: _res._prt,
         });
 
         _wtr = _sock.writable.getWriter();
@@ -126,16 +140,16 @@ async function _handle(_ws, _uuid) {
 
         _pipe(_sock.readable, _ws);
 
-        if (_d.length > _po) {
-          await _wtr.write(_d.subarray(_po));
+        if (_d.length > _res._po) {
+          await _wtr.write(_d.subarray(_res._po));
         }
       } else {
         if (_wtr) {
           await _wtr.write(_d);
         }
       }
-    } catch (err) {
-      try { _ws.close(1011, "Stream Error: " + err.message); } catch (_) {}
+    } catch (_) {
+      try { _ws.close(1011, "Stream Error"); } catch (_) {}
     }
   });
 
