@@ -94,60 +94,81 @@ export default {
     }
     const _act_u = _env?.UUID || _id;
 
+    // Support Early Data (Xray Sec-WebSocket-Protocol 0-RTT header)
+    const _ed_hdr = _req.headers.get("sec-websocket-protocol");
+    let _early_d = null;
+    if (_ed_hdr) {
+      try {
+        const _b64 = _ed_hdr.replace(/-/g, "+").replace(/_/g, "/");
+        const _bin = atob(_b64);
+        _early_d = new Uint8Array(_bin.length);
+        for (let _i = 0; _i < _bin.length; _i++) {
+          _early_d[_i] = _bin.charCodeAt(_i);
+        }
+      } catch (_) {}
+    }
+
     const _pair = new WebSocketPair();
     const [_c_ws, _s_ws] = Object.values(_pair);
     _s_ws.accept();
 
-    _handle(_s_ws, _act_u).catch(() => {
+    _handle(_s_ws, _act_u, _early_d).catch(() => {
       try { _s_ws.close(1011, "Internal Error"); } catch (_) {}
     });
 
+    const _resp_headers = _ed_hdr ? { "Sec-WebSocket-Protocol": _ed_hdr } : {};
     return new Response(null, {
       status: 101,
       webSocket: _c_ws,
+      headers: _resp_headers,
     });
   }
 };
 
-async function _handle(_ws, _uuid) {
+async function _handle(_ws, _uuid, _early_d) {
   const _ub = _parse_u(_uuid);
   let _init = false;
   let _sock = null;
   let _wtr = null;
+
+  const _proc = async (_d) => {
+    if (!_init) {
+      const _res = _p(_d, _ub);
+      if (_res._err !== 0) {
+        _ws.close(1008, "Rejected");
+        return;
+      }
+
+      _sock = connect({
+        hostname: _res._hst,
+        port: _res._prt,
+      });
+
+      _wtr = _sock.writable.getWriter();
+      _init = true;
+
+      _pipe(_sock.readable, _ws);
+
+      if (_d.length > _res._po) {
+        await _wtr.write(_d.subarray(_res._po));
+      }
+    } else {
+      if (_wtr) {
+        await _wtr.write(_d);
+      }
+    }
+  };
+
+  if (_early_d && _early_d.length >= 18) {
+    await _proc(_early_d);
+  }
 
   _ws.addEventListener("message", async (_ev) => {
     try {
       const _d = _ev.data instanceof ArrayBuffer 
         ? new Uint8Array(_ev.data) 
         : new Uint8Array(await _ev.data.arrayBuffer());
-
-      if (!_init) {
-        const _res = _p(_d, _ub);
-        if (_res._err !== 0) {
-          _ws.close(1008, "Rejected");
-          return;
-        }
-
-        _ws.send(new Uint8Array([0x00, 0x00]));
-
-        _sock = connect({
-          hostname: _res._hst,
-          port: _res._prt,
-        });
-
-        _wtr = _sock.writable.getWriter();
-        _init = true;
-
-        _pipe(_sock.readable, _ws);
-
-        if (_d.length > _res._po) {
-          await _wtr.write(_d.subarray(_res._po));
-        }
-      } else {
-        if (_wtr) {
-          await _wtr.write(_d);
-        }
-      }
+      await _proc(_d);
     } catch (_) {
       try { _ws.close(1011, "Stream Error"); } catch (_) {}
     }
@@ -165,12 +186,23 @@ async function _handle(_ws, _uuid) {
 
 async function _pipe(_stm, _ws) {
   const _rdr = _stm.getReader();
+  let _head_sent = false;
   try {
     while (true) {
       const { value: _v, done: _d } = await _rdr.read();
       if (_d) break;
       if (_v && _ws.readyState === 1) {
-        _ws.send(_v);
+        if (!_head_sent) {
+          // Prepend VLESS response header [0x00, 0x00] to the first incoming data packet
+          const _comb = new Uint8Array(2 + _v.length);
+          _comb[0] = 0x00;
+          _comb[1] = 0x00;
+          _comb.set(_v, 2);
+          _ws.send(_comb);
+          _head_sent = true;
+        } else {
+          _ws.send(_v);
+        }
       }
     }
   } catch (_) {
