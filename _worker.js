@@ -2,16 +2,25 @@ import { connect } from 'cloudflare:sockets';
 
 const _B64 = "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";
 
+const _PATH_PREFIX = "/stream";
+
+const _CAMOUFLAGE_HTML = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Service Status</title>
+<style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f9fafb;color:#111827}
+.card{background:#fff;padding:2rem;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);text-align:center}
+h1{font-size:1.5rem;color:#10b981}</style></head>
+<body><div class="card"><h1>System Operational</h1><p>All edge systems are currently operating normally.</p></div></body>
+</html>`;
+
 let _id = null;
-let _log_done = false;
 let _core_mod = null;
 
 async function _ld() {
   if (!_core_mod) {
     const _s = atob(_B64);
-    const _len = _s.length;
-    const _u = new Uint8Array(_len);
-    for (let _i = 0; _i < _len; _i++) {
+    const _u = new Uint8Array(_s.length);
+    for (let _i = 0; _i < _s.length; _i++) {
       _u[_i] = _s.charCodeAt(_i);
     }
     const { instance: _ins } = await WebAssembly.instantiate(_u);
@@ -29,35 +38,21 @@ function _parse_u(_str) {
   return _b;
 }
 
-function _fmt_url(_u, _h, _p, _tls) {
-  const _sec = _tls ? "tls" : "none";
-  const _tag = encodeURIComponent(`node-${_h}`);
-  return `vless://${_u}@${_h}:${_p}?encryption=none&security=${_sec}&type=ws&host=${_h}&path=%2F#${_tag}`;
-}
-
 export default {
   async fetch(_req, _env, _ctx) {
+    const _u = new URL(_req.url);
+
+    if (!_u.pathname.startsWith(_PATH_PREFIX) || _req.headers.get("Upgrade") !== "websocket") {
+      return new Response(_CAMOUFLAGE_HTML, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
     if (!_id) {
       _id = crypto.randomUUID();
     }
     const _act_u = _env?.UUID || _id;
-    const _u = new URL(_req.url);
-    const _h = _req.headers.get("Host") || _u.hostname;
-    const _is_tls = _u.protocol === "https:" || _req.headers.get("x-forwarded-proto") === "https";
-    const _port = _u.port || (_is_tls ? "443" : "80");
-    const _link = _fmt_url(_act_u, _h, _port, _is_tls);
-
-    if (!_log_done) {
-      console.log(`[ONLINE] Access URL:\n${_link}`);
-      _log_done = true;
-    }
-
-    if (_req.headers.get("Upgrade") !== "websocket") {
-      return new Response(`[SERVICE ONLINE]\n\nUUID: ${_act_u}\n\nSHARE LINK:\n${_link}\n`, {
-        status: 200,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      });
-    }
 
     const _pair = new WebSocketPair();
     const [_c_ws, _s_ws] = Object.values(_pair);

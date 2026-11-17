@@ -1,6 +1,6 @@
 # vless-worker-wasm
 
-Lightweight VLESS over WebSocket tunnel runner designed for Cloudflare Worker and workerd-compatible runtimes, powered by an obfuscated WebAssembly binary core.
+Lightweight tunnel runner designed for Cloudflare Worker and workerd-compatible runtimes, powered by an obfuscated WebAssembly binary core.
 
 ---
 
@@ -8,30 +8,24 @@ Lightweight VLESS over WebSocket tunnel runner designed for Cloudflare Worker an
 
 - **Obfuscated Binary Core**: Packet parsing, credentials verification, and target stream multiplexing are compiled into a compact WebAssembly binary with all internal symbols stripped.
 - **SSRF Shield**: Enforces strict network boundaries within the binary layer, rejecting connections to private subnets, link-local addresses, cloud metadata endpoints, and internal domains.
-- **Dynamic Credentials**: Automatically provisions a cryptographically random UUID on startup if none is set via `env.UUID`.
-- **Zero Build Dependencies**: Single-file runtime with embedded WebAssembly bytecode.
+- **Camouflage Mode**: Returns a realistic operational status HTML page on standard HTTP access and non-matching paths.
+- **Stealth Route**: Activates tunneling exclusively on the designated path (`/stream`).
 
 ---
 
-## Project Structure
+## Configuration
 
-```text
-.
-├── _worker.js         # Production Worker script with embedded WebAssembly core
-├── wrangler.toml      # Runtime configuration for Cloudflare Workers / workerd
-├── package.json       # Deployment scripts
-└── README.md          # Project documentation
+In `wrangler.toml`:
+```toml
+[vars]
+UUID = "d342d11e-d424-4583-b36e-524ab1f0afa4"
 ```
 
----
-
-## Deployment
-
-Deploy directly via Wrangler:
-
-```bash
-npm run deploy
-```
+Client settings:
+- **Protocol**: VLESS
+- **Transport**: WebSocket (`ws`)
+- **Path**: `/stream`
+- **TLS**: Enabled (port 443)
 
 ---
 
