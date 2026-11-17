@@ -1,0 +1,27 @@
+{
+  "name": "vless-worker-wasm",
+  "version": "1.0.0",
+  "description": "High-performance VLESS tunnel node running in Cloudflare Worker / workerd with an obfuscated Rust WASM core",
+  "main": "_worker.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node tests/test.js",
+    "build:core": "powershell core/build.ps1"
+  },
+  "keywords": [
+    "vless",
+    "cloudflare-workers",
+    "workerd",
+    "rust",
+    "wasm",
+    "proxy",
+    "tunnel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.50.0"
+  }
+}

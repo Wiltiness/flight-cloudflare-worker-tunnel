@@ -1,0 +1,8 @@
+name = "vless-worker-wasm"
+main = "_worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = [ "nodejs_compat" ]
+
+# 可选：如果希望固定 UUID，取消下面注释并填入你的 UUID
+# [vars]
+# UUID = "d342d11e-d424-4583-b36e-524ab1f0afa4"

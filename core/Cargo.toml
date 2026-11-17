@@ -1,0 +1,14 @@
+[package]
+name = "vless_core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "z"     # 针对体积进行极致压缩优化
+lto = true          # 启用链接时优化
+codegen-units = 1   # 减少并行构建以增强压缩
+panic = "abort"     # Panic 时直接中止，减少体积
+strip = true        # 剥离所有调试符号
