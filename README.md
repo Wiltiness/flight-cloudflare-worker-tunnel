@@ -2,7 +2,7 @@
 
 Lightweight tunnel runner designed for Cloudflare Worker and workerd-compatible runtimes, powered by an obfuscated WebAssembly binary core.
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=[https://github.com/YOUR_USERNAME/YOUR_REPO](https://github.com/Wiltiness/flight-cloudflare-worker-tunnel/)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Wiltiness/flight-cloudflare-worker-tunnel)
 
 ---
 
