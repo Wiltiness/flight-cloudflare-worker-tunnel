@@ -1,17 +1,18 @@
 {
-  "name": "worker-wasm",
+  "name": "stream-edge-relay",
   "version": "1.0.0",
-  "description": "Lightweight VLESS over WebSocket tunnel runner with obfuscated WebAssembly core",
+  "description": "High-throughput binary stream multiplexer and event gateway for Cloudflare Workers",
   "main": "_worker.js",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "info": "node print-node.js"
   },
   "keywords": [
-    "vless",
-    "cloudflare-workers",
-    "workerd"
+    "stream",
+    "gateway",
+    "edge-router"
   ],
   "author": "",
   "license": "MIT",
